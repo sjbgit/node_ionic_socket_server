@@ -45,7 +45,7 @@ router.post('/api/perftest', function (req, res) {
     res.json({message: 'Perf test - test message from server'}); // return all todos in JSON format
 });
 
-
+//this is some info
 router.post('/api/message', function(req, res) {
 
     console.log(req.body);
@@ -60,8 +60,8 @@ router.post('/api/message', function(req, res) {
 
 
 });
-
-var sockets = [];  
+//more info
+var sockets = [];
 
 
 function broadcast(event, data) {
