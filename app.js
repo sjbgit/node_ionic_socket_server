@@ -1,4 +1,7 @@
 /**
+ * Created by sbunke on 4/11/2015.
+ */
+/**
  * Created by sbunke on 4/10/2015.
  */
 //
@@ -12,6 +15,7 @@ var path = require('path');
 var async = require('async');
 var socketio = require('socket.io');
 var express = require('express');
+var bodyParser = require('body-parser');
 
 //
 // ## SimpleServer `SimpleServer(obj)`
@@ -23,65 +27,12 @@ var router = express();
 var server = http.createServer(router);
 var io = socketio.listen(server);
 
+//http://stackoverflow.com/questions/25550819/error-most-middleware-like-bodyparser-is-no-longer-bundled-with-express
+// parse application/json
+router.use(bodyParser.json());
 
-var rooms = {};
-
-
-
-
-//Try using rooms
-var Room = io
-    .of('/room')
-    .on('connection', function(socket) {
-        var joinedRoom = null;
-        socket.on('join room', function(data) {
-            socket.join(data); //socket is joining room
-            joinedRoom = data;
-            socket.emit('joined', "you've joined " + data);
-            rooms[joinedRoom] = socket;
-            socket.broadcast.to(joinedRoom)
-                .send('someone joined room');
-        });
-        socket.on('fromclient', function(data) {
-            if (joinedRoom) {
-                socket.broadcast.to(joinedRoom).send(data);
-            } else {
-                socket.send(
-                    "you're not joined a room." +
-                    "select a room and then push join."
-                );
-            }
-        });
-    });
-
-console.log(Room);
-
-/*
- router.post('/api/roomsend', function(req, res) {
-
-
- var body = req.body;
-
- var machine = body.machine;
-
- console.log('machine: ' + machine);
-
- //var body = req.body;
-
- //console.log('body: ' + body);
-
- //var message = body.message;
-
- //Room.emit('message', message);
-
- //broadcast('counter', body);
-
- //res.json({message: message + ' from server'});
-
-
- });
- */
-
+// parse application/x-www-form-urlencoded
+router.use(bodyParser.urlencoded({ extended: true }));
 
 router.all('*', function (req, res, next) {
     res.header("Access-Control-Allow-Origin", "*");
@@ -97,149 +48,24 @@ router.post('/api/perftest', function (req, res) {
     res.json({message: 'Perf test - test message from server'}); // return all todos in JSON format
 });
 
+//this is some info
+router.post('/api/message', function(req, res) {
 
-router.post('/api/room/:room', function(req, res) {
-
-    var roomName = req.params.room;
-
-    console.log('post to room name: ' + roomName);
-
-
-    var socket = rooms[roomName];
-
-
-    socket.broadcast.to(roomName)
-        .send('message', 'server message');
-
-    //io.sockets.broadcast.to(roomName).send('server message');
-
-    //var count = Room.sockets.length;
-    //console.log(count);
-
-
-    //Room.sockets.in(roomName).emit('message', 'server message');
-
-    //io.to(roomName).emit('message', 'server message');
-
-    res.json({message: roomName + ' from server'});
-
-});
-
-
-router.post('/api/roomsend', function(req, res) {
+    console.log(req.body);
 
     var body = req.body;
 
     var message = body.message;
 
-    console.log('message: ' + message);
-
-    //does this go to all rooms?
-    Room.emit('message', message);
-
-    //broadcast('counter', body);
+    broadcast('event:incoming:message', body);
 
     res.json({message: message + ' from server'});
 
 
 });
-
-
-
-router.post('/api/perfcounter', function(req, res) {
-
-    var body = req.body;
-
-    var machine = body.machine;
-
-    broadcast('counter', body);
-
-    res.json({message: machine + ' from server'});
-
-
-});
-
-router.post('/api/notify', function (req, res) {
-
-    var message = req.body.message;
-    var name = req.body.name || '/api/notify';
-
-    var data = {
-        name: name,
-        text: message
-    };
-
-
-    console.log('broadcast data');
-    console.log(data);
-
-    broadcast('message', data);
-    messages.push(data);
-
-    console.log('body message');
-    console.log(req.body.message);
-
-    res.json({message: message + ' from server'});
-
-});
-
-var messages = [];
+//more info
 var sockets = [];
 
-io.on('connection', function (socket) {
-    messages.forEach(function (data) {
-        socket.emit('message', data);
-    });
-
-    sockets.push(socket);
-
-    socket.on('disconnect', function () {
-        sockets.splice(sockets.indexOf(socket), 1);
-        updateRoster();
-    });
-
-    socket.on('message', function (msg) {
-        var text = String(msg || '');
-
-        if (!text)
-            return;
-
-        socket.get('name', function (err, name) {
-            var data = {
-                name: name,
-                text: text
-            };
-
-            broadcast('message', data);
-            messages.push(data);
-        });
-    });
-
-    socket.on('identify', function (name) {
-        socket.set('name', String(name || 'Anonymous'), function (err) {
-            updateRoster();
-        });
-    });
-});
-
-function updateRoster() {
-    async.map(
-        sockets,
-        function (socket, callback) {
-            socket.get('name', callback);
-        },
-        function (err, names) {
-            broadcast('roster', names);
-        }
-    );
-}
-
-//this should work the same as broadcast
-/*
- function broadcastAll(event, data) {
- io.emit(event, data);
- }
- */
 
 function broadcast(event, data) {
     sockets.forEach(function (socket) {
@@ -247,7 +73,71 @@ function broadcast(event, data) {
     });
 }
 
-server.listen(process.env.PORT || 3000, process.env.IP || "0.0.0.0", function () {
+server.listen(process.env.PORT || 8000, process.env.IP || "0.0.0.0", function () {
     var addr = server.address();
     console.log("Chat server listening at", addr.address + ":" + addr.port);
 });
+
+io.on('connection', function(socket){
+    sockets.push(socket);
+    socket.on('event:new:image',function(data){
+        socket.broadcast.emit('event:incoming:image',data);
+    });
+});
+
+
+
+
+
+
+
+
+
+
+
+
+
+/*
+ var express = require('express');
+ var app = express();
+ var server = require('http').Server(app);
+ var io = require('socket.io')(server);
+ var bodyParser = require('body-parser');
+
+ app.use(bodyParser.urlencoded({ extended: true }));
+ app.use(bodyParser.json());
+
+ var router = express.Router();
+
+ console.log(router);
+
+
+ router.route('/movies').get(function(req, res) {
+ res.json({message: 'Perf test - test message from server'}); // return all todos in JSON format
+ });
+
+ app.use(function(req, res, next) {
+ res.header("Access-Control-Allow-Origin", "*");
+ res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept");
+ next();
+ });
+
+
+ app.post('/api/perftest', function (req, res) {
+ res.json({message: 'Perf test - test message from server'}); // return all todos in JSON format
+ });
+
+
+ io.on('connection', function(socket){
+ socket.on('event:new:image',function(data){
+ socket.broadcast.emit('event:incoming:image',data);
+ });
+ });
+
+ server.listen(8000,function(){
+ console.log('Socket.io Running');
+ });
+
+ /**
+ * Created by sbunke on 4/9/2015.
+ */
