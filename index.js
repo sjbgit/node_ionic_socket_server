@@ -61,7 +61,7 @@ router.post('/api/message', function(req, res) {
 
 });
 
-var sockets = [];
+var sockets = [];  
 
 
 function broadcast(event, data) {
